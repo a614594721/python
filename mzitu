@@ -1,0 +1,84 @@
+# -*- coding: <encoding name> -*- : # -*- coding: utf-8 -*-
+import requests
+import os
+from bs4 import BeautifulSoup
+# https://www.mzitu.com/best/ 下载这个模块的所有图片
+# encoding = 'utf-8'
+def getHtml(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36",
+        "Referer": "https://www.mzitu.com/"
+        }
+    html = requests.get(url, headers=headers)
+    html.encoding = html.apparent_encoding
+    return html
+
+
+def getSoup(html):
+    return BeautifulSoup(html.text, "html.parser")
+
+
+def getTitle(soup):
+    title = soup.title.contents[0]
+    # '_'所在的索引位置
+    number = title.index(' ')
+    title = title[:number]
+
+    return str(title)
+
+
+def getAllPage(soup):
+    allPage = soup.select('.pagenavi > a > span')[-2].string
+    return allPage
+
+def getdefurl(soup):
+    defurl = soup.select(".main-image > p > a > img ")[0].attrs['src'][0:-6]
+    return defurl
+
+def makedir(title):
+    try:
+        os.mkdir(title)
+    except:
+        print(f"{title} 该文件夹无法被创建，格式有误，已重新创建新的：默认文件夹")
+        try:
+            os.mkdir("默认文件夹")
+            return
+        except:
+            print("已经存在默认文件夹，跳过创建默认文件夹步骤")
+            return
+# https://i3.mmzztt.com/2020/06/08a   https://i3.mmzztt.com/2020/06/08a01.jpg
+def downloadPic(title, allPage, defurl):
+    for number in range(1, int(allPage) + 1):
+        picUrl = f"{defurl}{str(number).rjust(2, '0')}.jpg"
+        pic = getHtml(picUrl)
+        with open(f"{title}/{number}.jpg", "wb+") as f:
+            f.write(pic.content)
+            print(f"第{number}张图片，正在下载中...")
+
+def main():
+    # 请输入你需要爬取的网站模块
+    url = 'https://www.mzitu.com/best/'
+    html = getHtml(url)
+    soup = getSoup(html)
+    htmlList = soup.select(".postlist > ul > li > a")
+    for url in htmlList:
+        htmlMark = url['href']
+
+        try:
+            html = getHtml(f"{htmlMark}")
+            soup = getSoup(html)
+            title = getTitle(soup)
+            allPage = getAllPage(soup)
+            defurl = getdefurl(soup)
+            new_title = title
+            #new_title = title + htmlMark
+            print(new_title)
+            makedir(new_title)
+        except:
+            print("%s网页出现了错误" % htmlMark)
+            continue
+        downloadPic(new_title, allPage, defurl)
+
+
+if __name__ == '__main__':
+    main()
