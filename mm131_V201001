@@ -1,0 +1,378 @@
+# -*- coding: <encoding name> -*- : # -*- coding: utf-8 -*-
+import re
+import requests
+import os
+from bs4 import BeautifulSoup
+import multiprocessing
+import time
+
+
+index_top = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="gbk">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
+<title>home_page</title>
+
+<link rel="stylesheet" href="css/waterfall.css">
+<!-- 不兼容IE10以下浏览器 -->
+
+</head>
+<body>'''
+index_end = '''</body>
+</html>'''
+moban_top = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="gbk">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
+<title>CSS3响应式瀑布流图片展示DEMO演示</title>
+
+<link rel="stylesheet" href="../css/waterfall.css">
+<!-- 不兼容IE10以下浏览器 -->
+
+</head>
+<body>
+
+<!-- <h1>纯CSS3实现倾角瀑布流，带滤镜特效</h1> -->
+
+<div style="text-align:center;clear:both;margin-bottom:50px;">
+<script src="/gg_bd_ad_720x90.js" type="text/javascript"></script>
+<script src="/follow.js" type="text/javascript"></script>
+</div>
+
+<div id="waterfall">
+'''
+moban_end = '''</div>
+
+</body>
+</html>
+'''
+waterfull_css ='''/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+b,
+u,
+i,
+center,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+canvas,
+details,
+embed,
+figure,
+figcaption,
+footer,
+header,
+hgroup,
+menu,
+nav,
+output,
+ruby,
+section,
+summary,
+time,
+mark,
+audio,
+video {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 100%;
+  font: inherit;
+  vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section {
+  display: block;
+}
+body {
+  line-height: 1;
+}
+ol,
+ul {
+  list-style: none;
+}
+blockquote,
+q {
+  quotes: none;
+}
+blockquote:before,
+blockquote:after,
+q:before,
+q:after {
+  content: '';
+  content: none;
+}
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+* {
+  box-sizing: border-box;
+  font-family: "微软雅黑";
+}
+h1 {
+  text-align: center;
+  padding: 50px  0;
+  font-size: 32px;
+  font-weight: bold;
+  color: #333;
+}
+#waterfall {
+  column-count: 3; 
+  width: 80%;
+  margin: 0 auto;
+  column-gap: 15px;
+}
+#waterfall > span {
+  margin-bottom: 20px;
+  display: block;
+  overflow: hidden;
+}
+#waterfall > span img {
+  display: block;
+  width: 100%;
+  transform: rotate(4deg);
+  opacity: 0.9;
+  filter: saturate(150%);
+}
+#waterfall > span:hover img {
+  transform: rotate(0deg);
+  transform: scale(1.15);
+  transition: all 200ms linear;
+  opacity: 1;
+  filter: saturate(100%);
+}
+'''
+
+def getHtml(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36",
+        "Referer": "https://www.mm131.net"
+        }
+    html = requests.get(url, headers=headers)
+    html.encoding = html.apparent_encoding
+    return html
+
+
+def getSoup(html):
+    return BeautifulSoup(html.text, "html.parser")
+
+
+def getTitle(soup):
+    title = soup.title.contents[0]
+    # '_'所在的索引位置
+    number = title.index('_')
+    title = title[:number]
+    new_title = re.sub(r"|[\\/:*?\"<>| ]+", "", title)
+    return str(new_title)
+
+
+def getAllPage(soup):
+    allPage = soup.select('body > div.content > div.content-page > span:nth-child(1)')[0].string[1:-1]
+    return allPage
+
+
+def makedir(title):
+    try:
+        os.mkdir(title)
+    except:
+        print(f"{title} 该文件夹无法被创建，格式有误，已重新创建新的：默认文件夹")
+        try:
+            os.mkdir("默认文件夹")
+            return
+        except:
+            print("已经存在默认文件夹，跳过创建默认文件夹步骤")
+            return
+
+
+# 创建文件夹及文件
+def makedir(title):
+    try:
+        os.mkdir(f'Picture/{title}')
+        return 0
+    except:
+        print(f"{title} 该文件夹无法被创建，可能原因是该文件夹已经存在！！！\n")
+        return 1
+
+
+def makehtml(title, count):
+    # os.mkdir(title)
+    # print("xxxxxx")
+    fp = open(f"HTML/{title}.html", 'w')
+    fp.write(moban_top)
+
+    for i in range(1,count):
+        fp.write(f'<span><img src="../Picture/{title}/{i}.jpg" ></span>\n')
+        # fp.next()
+    fp.write(moban_end)
+    fp.close()
+
+def makeindexhtml(title):
+    lines = []
+    f = open("index.html", 'r')  # your path!
+    for line in f:
+        lines.append(line)
+    f.close()
+    lines.insert(13, f"<h2><a href=\"HTML/{title}.html\">{title}</a></h2>\n")  # 第13行后面插入数据
+    s = ''.join(lines)
+    f = open("index.html", 'w+')  # 重新写入文件
+    f.write(s)
+    f.close()
+    del lines[:]  # 清空列表
+
+def downloadPic(title, allPage, htmlMark):
+    makehtml(title, int(allPage) + 1)
+    makeindexhtml(title)
+    for number in range(1, int(allPage) + 1):
+        picUrl = f"https://img1.mmmw.net/pic/{htmlMark}/{number}.jpg"
+        pic = getHtml(picUrl)
+        try:
+            with open(f"Picture/{title}/{number}.jpg", "wb+") as f:
+                f.write(pic.content)
+                print(f"第{number}张图片，正在下载中...")
+        except:
+            with open(f"默认文件夹/{htmlMark}_{number}.jpg", "wb+") as f:
+                f.write(pic.content)
+                print(f"第{number}张图片，正在下载中...")
+def index(i,ii):
+    # 请输入你需要爬取的页码
+    for mark in range(i, ii, -1):
+        htmlMark = str(mark)
+        try:
+            html = getHtml(f"https://www.mm131.net/xinggan/{htmlMark}.html")
+            soup = getSoup(html)
+            title = getTitle(soup)
+            allPage = getAllPage(soup)
+            new_title = title + '_page=' + htmlMark
+            #new_title = title + htmlMark
+            print(new_title)
+            makedir(new_title)
+
+        except:
+            print("%s网页出现了错误" % htmlMark)
+            continue
+        downloadPic(new_title, allPage, htmlMark)
+
+if __name__ == '__main__':
+    # 在程序开始之前，先准备需要的文件夹和文件
+    # 创建文件夹
+    try:
+        os.mkdir('HTML')
+    except:
+        pass
+        # print('HTML文件夹已经存在')
+    try:
+        os.mkdir('Picture')
+    except:
+        pass
+        # print('Picture文件夹已经存在')
+    try:
+        os.mkdir('css')
+    except:
+        pass
+        # print('css文件夹已经存在')
+    # 创建index.html文件
+    # 先判断文件是否存在
+    if os.path.exists("index.html"):
+        pass
+        # print('index.html文件夹已经存在')
+    else:
+        f = open("index.html", 'w')  # your path!
+        f.write(index_top)
+        f.write('\n')
+        f.write(index_end)
+        f.close()
+
+    if os.path.exists("css\waterfall.css"):
+        pass
+        # print('css\waterfall.css文件夹已经存在')
+    else:
+        f = open("css\waterfall.css", 'w')  # your path!
+        f.write(waterfull_css)
+        f.close()
+    # 创建进程
+    process_dl0 = multiprocessing.Process(target=index, args=(5625,5615 ))
+    process_dl1 = multiprocessing.Process(target=index, args=(5615,5605))
+    process_dl2 = multiprocessing.Process(target=index, args=(5605,5595 ))
+    process_dl3 = multiprocessing.Process(target=index, args=(5595,5585 ))
+    process_dl4 = multiprocessing.Process(target=index, args=(5585,5575 ))
+    #
+    # print("完成")
+    # 启动进程
+    process_dl0.start()
+    process_dl1.start()
+    process_dl2.start()
+    process_dl3.start()
+    process_dl4.start()
